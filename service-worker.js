@@ -1,5 +1,5 @@
 
-const CACHE = 'ifc-pro-v1';
+const CACHE = 'ifc-pro-v2';
 const CORE = [
   './',
   './index.html',

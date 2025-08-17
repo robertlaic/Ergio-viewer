@@ -104,200 +104,202 @@
 import { IfcViewerAPI } from 'web-ifc-viewer';
 import * as THREE from 'three';
 
-const container = document.getElementById('viewer');
-const viewer = new IfcViewerAPI({ container, backgroundColor: new THREE.Color(0xe5e7eb) });
-await viewer.IFC.setWasmPath("https://unpkg.com/web-ifc@0.0.43/");
-viewer.grid.setGrid();
-viewer.axes.setAxes();
+async function main(){
+  const container = document.getElementById('viewer');
+  const viewer = new IfcViewerAPI({ container, backgroundColor: new THREE.Color(0xe5e7eb) });
+  // NO top-level await; wait inside main
+  try{ await viewer.IFC.setWasmPath("https://unpkg.com/web-ifc@0.0.43/"); }catch(e){ console.error('WASM path set error', e); }
+  viewer.grid.setGrid(); viewer.axes.setAxes();
 
-// --- UI refs (DECLARE O DATĂ) ---
-const fileIn = document.getElementById('file');
-const openBtn = document.getElementById('open');
-const fitBtn = document.getElementById('fit');
-const isolateBtn = document.getElementById('isolate');
-const hideBtn = document.getElementById('hide');
-const unhideBtn = document.getElementById('unhide');
-const measureBtn = document.getElementById('measure');
-const screenshotBtn = document.getElementById('screenshot');
-const statusEl = document.getElementById('status'); 
-const bar = document.getElementById('bar');
-const help = document.getElementById('help'); 
-const helpBtn = document.getElementById('helpBtn'); 
-const closeHelp = document.getElementById('closeHelp');
-const storeysEl = document.getElementById('storeys'); 
-const catsEl = document.getElementById('cats'); 
-const selEl = document.getElementById('sel');
+  // UI refs
+  const fileIn = document.getElementById('file');
+  const openBtn = document.getElementById('open');
+  const fitBtn = document.getElementById('fit');
+  const isolateBtn = document.getElementById('isolate');
+  const hideBtn = document.getElementById('hide');
+  const unhideBtn = document.getElementById('unhide');
+  const measureBtn = document.getElementById('measure');
+  const screenshotBtn = document.getElementById('screenshot');
+  const statusEl = document.getElementById('status'); 
+  const bar = document.getElementById('bar');
+  const help = document.getElementById('help'); 
+  const helpBtn = document.getElementById('helpBtn'); 
+  const closeHelp = document.getElementById('closeHelp');
+  const storeysEl = document.getElementById('storeys'); 
+  const catsEl = document.getElementById('cats'); 
+  const selEl = document.getElementById('sel');
 
-let modelID=null;
-let lastSelection=null;
-let measuring=false;
-let measurePts=[]; let measureLine=null;
+  let modelID=null, lastSelection=null, measuring=false, measurePts=[], measureLine=null;
 
-// progress
-viewer.IFC.loader.ifcManager.state.api.onProgress = (p)=>{ try{ bar.style.width=(p*100).toFixed(1)+'%'; }catch{} };
+  // progress (guarded)
+  try{
+    viewer.IFC.loader.ifcManager.state.api.onProgress = (p)=>{ try{ bar.style.width=(p*100).toFixed(1)+'%'; }catch{} };
+  }catch{}
 
-function setStatus(t){ statusEl.textContent=t; }
+  const setStatus=(t)=> statusEl.textContent=t;
 
-// --- File open wiring (with console log) ---
-openBtn.addEventListener('click', ()=> { console.log('Buton apăsat: Deschide model'); fileIn.click(); });
-fileIn.addEventListener('change', async (e)=>{ const f=e.target.files?.[0]; if (f) await loadIfc(f); });
+  // File open
+  openBtn.addEventListener('click', ()=> { console.log('Buton apăsat: Deschide model'); fileIn.click(); });
+  fileIn.addEventListener('change', async (e)=>{ const f=e.target.files?.[0]; if (f) await loadIfc(f); });
 
-// Drag & drop
-const stop=(e)=>{ e.preventDefault(); e.stopPropagation(); };
-['dragenter','dragover','dragleave','drop'].forEach(ev=>{ window.addEventListener(ev, stop, {passive:false}); document.body.addEventListener(ev, stop, {passive:false}); });
-document.addEventListener('drop', async (e)=>{ const f=e.dataTransfer?.files?.[0]; if (f) await loadIfc(f); }, {passive:false});
+  // Drag & drop
+  const stop=(e)=>{ e.preventDefault(); e.stopPropagation(); };
+  ['dragenter','dragover','dragleave','drop'].forEach(ev=>{ window.addEventListener(ev, stop, {passive:false}); document.body.addEventListener(ev, stop, {passive:false}); });
+  document.addEventListener('drop', async (e)=>{ const f=e.dataTransfer?.files?.[0]; if (f) await loadIfc(f); }, {passive:false});
 
-async function loadIfc(file){
-  setStatus('Se încarcă '+file.name+' ...');
-  const model = await viewer.IFC.loadIfcFile(file, true);
-  modelID = model.modelID;
-  viewer.shadowDropper.darkness = 0.25;
-  viewer.shadowDropper.renderShadow(model.mesh);
-  await buildInspector();
-  setStatus('Încărcat: '+file.name);
-}
+  async function loadIfc(file){
+    setStatus('Se încarcă '+file.name+' ...');
+    const model = await viewer.IFC.loadIfcFile(file, true);
+    modelID = model.modelID;
+    viewer.shadowDropper.darkness = 0.25;
+    viewer.shadowDropper.renderShadow(model.mesh);
+    await buildInspector();
+    setStatus('Încărcat: '+file.name);
+  }
 
-// Build inspector
-async function buildInspector(){
-  const spatial = await viewer.IFC.getSpatialStructure(modelID);
-  storeysEl.innerHTML='';
-  const storeyNodes=[];
-  (function walk(n){
-    if (!n) return;
-    if (n.type==='IFCBUILDINGSTOREY') storeyNodes.push(n);
-    (n.children||[]).forEach(walk);
-  })(spatial);
-  storeyNodes.forEach(st=>{
-    const label=document.createElement('label'); label.style.display='block';
-    const cb=document.createElement('input'); cb.type='checkbox'; cb.checked=true; cb.dataset.storey=st.expressID;
-    cb.onchange = ()=> toggleStorey(st.expressID, cb.checked);
-    label.appendChild(cb);
-    const span=document.createElement('span'); span.textContent=' '+(st.name || ('Storey '+st.expressID));
-    label.appendChild(span); storeysEl.appendChild(label);
+  // Inspector
+  async function buildInspector(){
+    const spatial = await viewer.IFC.getSpatialStructure(modelID);
+    storeysEl.innerHTML='';
+    const storeyNodes=[];
+    (function walk(n){ if (!n) return; if (n.type==='IFCBUILDINGSTOREY') storeyNodes.push(n); (n.children||[]).forEach(walk); })(spatial);
+    storeyNodes.forEach(st=>{
+      const label=document.createElement('label'); label.style.display='block';
+      const cb=document.createElement('input'); cb.type='checkbox'; cb.checked=true; cb.dataset.storey=st.expressID;
+      cb.onchange = ()=> toggleStorey(st.expressID, cb.checked);
+      label.appendChild(cb); const span=document.createElement('span'); span.textContent=' '+(st.name || ('Storey '+st.expressID));
+      label.appendChild(span); storeysEl.appendChild(label);
+    });
+
+    const IFC = viewer.IFC.loader.ifcManager.types;
+    const CATS = [
+      'IFCWALL','IFCSLAB','IFCBEAM','IFCCOLUMN','IFCROOF','IFCPLATE','IFCMEMBER',
+      'IFCWINDOW','IFCDOOR','IFCCOVERING','IFCFURNISHINGELEMENT','IFCRAILING','IFCRAMP','IFCSTAIR'
+    ].filter(k=> IFC[k] !== undefined);
+
+    catsEl.innerHTML='';
+    for (const cat of CATS){
+      const type = IFC[cat];
+      const ids = await viewer.IFC.loader.ifcManager.getAllItemsOfType(modelID, type, false);
+      if (!ids.length) continue;
+      const label=document.createElement('label'); label.style.display='block';
+      const cb=document.createElement('input'); cb.type='checkbox'; cb.checked=true; cb.dataset.cat=type;
+      cb.onchange = ()=> toggleCategory(type, cb.checked);
+      label.appendChild(cb);
+      const span=document.createElement('span'); span.textContent=' '+cat+' ('+ids.length+')';
+      label.appendChild(span);
+      catsEl.appendChild(label);
+    }
+
+    document.getElementById('presetStruct').onclick = ()=>{
+      catsEl.querySelectorAll('input[type=checkbox]').forEach(cb=>{
+        const row = cb.nextSibling.textContent;
+        const keep = /(WALL|SLAB|BEAM|COLUMN|ROOF|PLATE|MEMBER)/.test(row);
+        cb.checked = keep;
+        toggleCategory(parseInt(cb.dataset.cat), keep, false);
+      });
+      viewer.context.renderer.postProduction.update();
+    };
+    document.getElementById('presetFinisaje').onclick = ()=>{
+      catsEl.querySelectorAll('input[type=checkbox]').forEach(cb=>{
+        const row = cb.nextSibling.textContent;
+        const keep = /(WINDOW|DOOR|COVERING|FURNISHING)/.test(row);
+        cb.checked = keep;
+        toggleCategory(parseInt(cb.dataset.cat), keep, false);
+      });
+      viewer.context.renderer.postProduction.update();
+    };
+  }
+
+  async function toggleStorey(storeyId, visible){
+    const rels = await viewer.IFC.getSpatialStructure(modelID);
+    const targets=[];
+    (function collect(node, active){
+      const isStorey = node.type==='IFCBUILDINGSTOREY' && node.expressID===storeyId;
+      const nowActive = active || isStorey;
+      (node.children||[]).forEach(ch=>{
+        if (nowActive && ch.expressID) targets.push(ch.expressID);
+        collect(ch, nowActive);
+      });
+    })(rels,false);
+    if (visible) await viewer.IFC.showItems(modelID, targets);
+    else await viewer.IFC.hideItems(modelID, targets);
+  }
+
+  async function toggleCategory(type, visible, update=true){
+    if (visible) await viewer.IFC.showAllItemsOfType(modelID, type);
+    else {
+      const ids = await viewer.IFC.loader.ifcManager.getAllItemsOfType(modelID, type, false);
+      await viewer.IFC.hideItems(modelID, ids.map(x=>x.expressID||x));
+    }
+    if (update) viewer.context.renderer.postProduction.update();
+  }
+
+  // Selection
+  window.onpointerdown = async ()=>{
+    const res = await viewer.IFC.selector.pickIfcItem();
+    if (!res) { lastSelection=null; selEl.textContent='Selecție: (nimic)'; return; }
+    lastSelection = res;
+    selEl.textContent = 'Selecție: '+res.type+' #'+res.expressID;
+  };
+  isolateBtn.onclick = ()=>{ if (lastSelection) viewer.IFC.selector.isolateSelection(); };
+  hideBtn.onclick = async ()=>{
+    if (!lastSelection) return;
+    await viewer.IFC.hideItems(lastSelection.modelID, [lastSelection.expressID]);
+    lastSelection=null; selEl.textContent='Selecție: (nimic)';
+  };
+  unhideBtn.onclick = async ()=>{ await viewer.IFC.showAllItems(modelID); };
+
+  fitBtn.onclick = ()=> viewer.context.ifcCamera.fitModelToFrame();
+
+  // Measure (two points)
+  measureBtn.onclick = ()=>{ measuring=!measuring; measureBtn.setAttribute('aria-pressed', measuring); if (!measuring) clearMeasure(); };
+  function clearMeasure(){
+    measurePts=[];
+    if (measureLine){ viewer.context.getScene().remove(measureLine); measureLine=null; }
+    setStatus('Măsurare oprită');
+  }
+  window.addEventListener('click', async (e)=>{
+    if (!measuring) return;
+    const result = await viewer.context.castRayIfc();
+    if(!result) return;
+    const pt = result.point;
+    measurePts.push(pt);
+    if (measurePts.length===2){
+      const g = new THREE.BufferGeometry().setFromPoints(measurePts);
+      const m = new THREE.LineBasicMaterial({ color: 0x2563eb });
+      if (measureLine) viewer.context.getScene().remove(measureLine);
+      measureLine = new THREE.Line(g, m);
+      viewer.context.getScene().add(measureLine);
+      const d = measurePts[0].distanceTo(measurePts[1]);
+      setStatus('Distanță: '+(d*1000).toFixed(1)+' mm');
+      measurePts=[];
+    } else {
+      setStatus('Primul punct selectat. Alege al doilea punct…');
+    }
   });
 
-  const IFC = viewer.IFC.loader.ifcManager.types;
-  const CATS = [
-    'IFCWALL','IFCSLAB','IFCBEAM','IFCCOLUMN','IFCROOF','IFCPLATE','IFCMEMBER',
-    'IFCWINDOW','IFCDOOR','IFCCOVERING','IFCFURNISHINGELEMENT','IFCRAILING','IFCRAMP','IFCSTAIR'
-  ].filter(k=> IFC[k] !== undefined);
-
-  catsEl.innerHTML='';
-  for (const cat of CATS){
-    const type = IFC[cat];
-    const ids = await viewer.IFC.loader.ifcManager.getAllItemsOfType(modelID, type, false);
-    if (!ids.length) continue;
-    const label=document.createElement('label'); label.style.display='block';
-    const cb=document.createElement('input'); cb.type='checkbox'; cb.checked=true; cb.dataset.cat=type;
-    cb.onchange = ()=> toggleCategory(type, cb.checked);
-    label.appendChild(cb);
-    const span=document.createElement('span'); span.textContent=' '+cat+' ('+ids.length+')';
-    label.appendChild(span);
-    catsEl.appendChild(label);
-  }
-
-  document.getElementById('presetStruct').onclick = ()=>{
-    catsEl.querySelectorAll('input[type=checkbox]').forEach(cb=>{
-      const row = cb.nextSibling.textContent;
-      const keep = /(WALL|SLAB|BEAM|COLUMN|ROOF|PLATE|MEMBER)/.test(row);
-      cb.checked = keep;
-      toggleCategory(parseInt(cb.dataset.cat), keep, false);
-    });
-    viewer.context.renderer.postProduction.update();
+  screenshotBtn.onclick = ()=>{
+    const link = document.createElement('a');
+    link.download='screenshot.png';
+    link.href = viewer.context.renderer.getCanvas().toDataURL('image/png');
+    link.click();
   };
-  document.getElementById('presetFinisaje').onclick = ()=>{
-    catsEl.querySelectorAll('input[type=checkbox]').forEach(cb=>{
-      const row = cb.nextSibling.textContent;
-      const keep = /(WINDOW|DOOR|COVERING|FURNISHING)/.test(row);
-      cb.checked = keep;
-      toggleCategory(parseInt(cb.dataset.cat), keep, false);
-    });
-    viewer.context.renderer.postProduction.update();
-  };
+
+  // Help overlay
+  helpBtn.onclick = ()=> help.style.display='flex';
+  closeHelp.onclick = ()=> help.style.display='none';
+
+  // Adaptive pixel ratio
+  const renderer = viewer.context.renderer;
+  renderer.renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 1.5));
 }
 
-async function toggleStorey(storeyId, visible){
-  const rels = await viewer.IFC.getSpatialStructure(modelID);
-  const targets=[];
-  (function collect(node, active){
-    const isStorey = node.type==='IFCBUILDINGSTOREY' && node.expressID===storeyId;
-    const nowActive = active || isStorey;
-    (node.children||[]).forEach(ch=>{
-      if (nowActive && ch.expressID) targets.push(ch.expressID);
-      collect(ch, nowActive);
-    });
-  })(rels,false);
-  if (visible) await viewer.IFC.showItems(modelID, targets);
-  else await viewer.IFC.hideItems(modelID, targets);
-}
-
-async function toggleCategory(type, visible, update=true){
-  if (visible) await viewer.IFC.showAllItemsOfType(modelID, type);
-  else {
-    const ids = await viewer.IFC.loader.ifcManager.getAllItemsOfType(modelID, type, false);
-    await viewer.IFC.hideItems(modelID, ids.map(x=>x.expressID||x));
-  }
-  if (update) viewer.context.renderer.postProduction.update();
-}
-
-// Selection
-window.onpointerdown = async ()=>{
-  const res = await viewer.IFC.selector.pickIfcItem();
-  if (!res) { lastSelection=null; selEl.textContent='Selecție: (nimic)'; return; }
-  lastSelection = res;
-  selEl.textContent = 'Selecție: '+res.type+' #'+res.expressID;
-};
-isolateBtn.onclick = ()=>{ if (lastSelection) viewer.IFC.selector.isolateSelection(); };
-hideBtn.onclick = async ()=>{
-  if (!lastSelection) return;
-  await viewer.IFC.hideItems(lastSelection.modelID, [lastSelection.expressID]);
-  lastSelection=null; selEl.textContent='Selecție: (nimic)';
-};
-unhideBtn.onclick = async ()=>{ await viewer.IFC.showAllItems(modelID); };
-
-fitBtn.onclick = ()=> viewer.context.ifcCamera.fitModelToFrame();
-
-// Measure (two points)
-measureBtn.onclick = ()=>{ measuring=!measuring; measureBtn.setAttribute('aria-pressed', measuring); if (!measuring) clearMeasure(); };
-function clearMeasure(){
-  measurePts=[];
-  if (measureLine){ viewer.context.getScene().remove(measureLine); measureLine=null; }
-  setStatus('Măsurare oprită');
-}
-window.addEventListener('click', async (e)=>{
-  if (!measuring) return;
-  const result = await viewer.context.castRayIfc();
-  if(!result) return;
-  const pt = result.point;
-  measurePts.push(pt);
-  if (measurePts.length===2){
-    const g = new THREE.BufferGeometry().setFromPoints(measurePts);
-    const m = new THREE.LineBasicMaterial({ color: 0x2563eb });
-    if (measureLine) viewer.context.getScene().remove(measureLine);
-    measureLine = new THREE.Line(g, m);
-    viewer.context.getScene().add(measureLine);
-    const d = measurePts[0].distanceTo(measurePts[1]);
-    setStatus('Distanță: '+(d*1000).toFixed(1)+' mm');
-    measurePts=[];
-  } else {
-    setStatus('Primul punct selectat. Alege al doilea punct…');
-  }
+// start
+main().catch(err=>{
+  console.error('Init error:', err);
+  alert('Eroare la inițializare. Verifică dacă browserul suportă module ES și import maps.');
 });
-
-screenshotBtn.onclick = ()=>{
-  const link = document.createElement('a');
-  link.download='screenshot.png';
-  link.href = viewer.context.renderer.getCanvas().toDataURL('image/png');
-  link.click();
-};
-
-// Help overlay (single declaration)
-helpBtn.onclick = ()=> help.style.display='flex';
-closeHelp.onclick = ()=> help.style.display='none';
-
-// Adaptive pixel ratio
-const renderer = viewer.context.renderer;
-renderer.renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 1.5));
 </script>
 </body>
 </html>
