@@ -1,10 +1,10 @@
 {
-  "name": "Cadwork Viewer PRO+",
-  "short_name": "CW Viewer",
+  "name": "Cadwork IFC Viewer PRO",
+  "short_name": "IFC Viewer",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#0f1115",
-  "theme_color": "#0f1115",
+  "background_color": "#f3f4f6",
+  "theme_color": "#e5e7eb",
   "icons": [
     {
       "src": "icons/wood-cube-ruler-192.png",
