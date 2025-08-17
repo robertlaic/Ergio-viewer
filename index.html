@@ -1,305 +1,1110 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ro">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
-  <title>Cadwork IFC Viewer PRO</title>
-  <link rel="manifest" href="manifest.json"/>
-  <meta name="theme-color" content="#e5e7eb"/>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ERGIO - Professional BIM Viewer</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="wood-cube-ruler-192.png">
   <style>
-    :root{ --bg:#f3f4f6; --panel:#ffffff; --muted:#6b7280; --text:#111827; --line:#e5e7eb; --accent:#2563eb;}
-    html,body{height:100%;margin:0;font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--text)}
-    #app{position:fixed;inset:0;display:grid;grid-template-columns: 1fr 320px; grid-template-rows: auto 1fr; grid-template-areas: "toolbar sidebar" "viewer sidebar";}
-    #toolbar{grid-area:toolbar; display:flex;gap:8px; align-items:center; padding:10px; border-bottom:1px solid var(--line); background:#f8fafc; position:sticky; top:0; z-index:10}
-    .btn{background:#fff;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px;cursor:pointer}
-    .btn:hover{border-color:#cbd5e1}
-    .btn[aria-pressed="true"]{outline:2px solid var(--accent)}
-    #viewer{grid-area:viewer; position:relative; background:#e5e7eb}
-    #sidebar{grid-area:sidebar; display:flex; flex-direction:column; border-left:1px solid var(--line); background:var(--panel)}
-    #sidebar header{font-weight:600; padding:10px 12px; border-bottom:1px solid var(--line);}
-    .section{padding:10px 12px; border-bottom:1px solid var(--line)}
-    .search{width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:8px}
-    #tree{flex:1; overflow:auto; padding:8px 12px}
-    .node{display:flex; align-items:center; gap:6px; margin:3px 0}
-    .node .name{flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-    .small{font-size:12px;color:var(--muted)}
-    #help{position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; align-items:center; justify-content:center; z-index:50}
-    #help .card{width:min(680px,90vw); background:#fff; border-radius:12px; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,.2)}
-    #help h2{margin-top:0} #help ul{line-height:1.6}
-    #status{position:fixed; left:10px; bottom:10px; background:#fff; border:1px solid var(--line); border-radius:8px; padding:6px 10px; font-size:12px}
-    #progress{position:fixed; left:0; right:0; top:0; height:3px; background:#e5e7eb}
-    #bar{height:100%; width:0%; background:var(--accent); transition:width .1s}
-  </style>
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', ()=> navigator.serviceWorker.register('./service-worker.js'));
+    :root {
+      --primary: #0066cc;
+      --primary-dark: #004c99;
+      --secondary: #1a365d;
+      --accent: #00a0ff;
+      --ergio-red: #e53e3e;
+      --ergio-gray: #999999;
+      --house-color: #d4d4d4;
+      --bg-main: #0f1419;
+      --bg-panel: #1e2832;
+      --bg-card: #273441;
+      --text-primary: #ffffff;
+      --text-secondary: #a0aec0;
+      --text-muted: #718096;
+      --border: #2d3748;
+      --border-light: #4a5568;
+      --success: #48bb78;
+      --warning: #ed8936;
+      --error: #f56565;
+      --shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+      --shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.6);
     }
-  </script>
+
+body {
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg-main);
+      color: var(--text-primary);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    #viewer-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+
+    /* Header */
+    #header {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 70px;
+      background: linear-gradient(135deg, var(--bg-panel) 0%, var(--secondary) 100%);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      z-index: 100;
+      box-shadow: var(--shadow);
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    /* ERGIO Logo - doar imaginea */
+    .logo-container {
+      display: flex;
+      align-items: center;
+    }
+
+    .logo-image {
+      height: 40px;
+      width: auto;
+      object-fit: contain;
+    }
+
+    .header-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    /* Buttons */
+    .btn {
+      background: var(--bg-card);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+      padding: 12px 18px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none;
+    }
+
+    .btn:hover {
+      background: var(--primary);
+      border-color: var(--primary);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 102, 204, 0.3);
+    }
+
+    .btn.primary {
+      background: linear-gradient(135deg, var(--ergio-red) 0%, #c53030 100%);
+      border-color: var(--ergio-red);
+      color: white;
+    }
+
+    .btn.primary:hover {
+      background: linear-gradient(135deg, #c53030 0%, #9c2626 100%);
+      box-shadow: 0 4px 12px rgba(229, 62, 62, 0.4);
+    }
+
+    .btn-icon {
+      width: 16px;
+      height: 16px;
+      fill: currentColor;
+    }
+
+    /* Main viewer area */
+    #canvas-container {
+      position: absolute;
+      top: 70px;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(135deg, #0f1419 0%, #1a202c 100%);
+    }
+
+    #xeokit-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      background: transparent;
+    }
+
+    /* Loading overlay */
+    #loading {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(15, 20, 25, 0.95);
+      backdrop-filter: blur(8px);
+      z-index: 200;
+    }
+
+    .loading-card {
+      width: min(450px, 90vw);
+      background: var(--bg-card);
+      color: var(--text-primary);
+      border: 1px solid var(--border-light);
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: var(--shadow-lg);
+    }
+
+    .loading-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .loading-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .loading-percentage {
+      color: var(--ergio-red);
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .progress-bar {
+      height: 8px;
+      background: var(--bg-main);
+      border-radius: 4px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      margin-bottom: 12px;
+    }
+
+    .progress-fill {
+      display: block;
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--ergio-red) 0%, #c53030 100%);
+      transition: width 0.3s ease;
+      border-radius: 3px;
+    }
+
+    .loading-message {
+      color: var(--text-secondary);
+      font-size: 14px;
+      text-align: center;
+    }
+
+    /* Info panel */
+    #info-panel {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      min-width: 220px;
+      box-shadow: var(--shadow);
+      opacity: 0;
+      transform: translateY(20px);
+      transition: all 0.3s ease;
+      z-index: 50;
+    }
+
+    #info-panel.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .info-title {
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--text-primary);
+    }
+
+    .info-item {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+      font-size: 13px;
+    }
+
+    .info-label {
+      color: var(--text-secondary);
+    }
+
+    .info-value {
+      color: var(--text-primary);
+      font-weight: 500;
+    }
+
+    /* Controls help */
+    #controls-help {
+      position: absolute;
+      top: 90px;
+      right: 20px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      width: 280px;
+      box-shadow: var(--shadow);
+      display: none;
+      z-index: 50;
+    }
+
+    .help-title {
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .help-item {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      font-size: 13px;
+    }
+
+    .help-action {
+      color: var(--text-secondary);
+    }
+
+    .help-keys {
+      color: var(--ergio-red);
+      font-weight: 500;
+    }
+
+    /* Toolbar */
+    #toolbar {
+      position: absolute;
+      top: 90px;
+      left: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 50;
+    }
+
+    .tool-group {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .tool-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-secondary);
+      padding: 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+
+    .tool-btn:hover {
+      background: var(--ergio-red);
+      color: white;
+      border-color: var(--ergio-red);
+    }
+
+    .tool-btn.active {
+      background: var(--ergio-red);
+      color: white;
+      border-color: var(--ergio-red);
+    }
+
+    /* Status indicator */
+    .status-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+      margin-right: 8px;
+      box-shadow: 0 0 0 2px rgba(72, 187, 120, 0.3);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 2px rgba(72, 187, 120, 0.3); }
+      50% { box-shadow: 0 0 0 4px rgba(72, 187, 120, 0.1); }
+      100% { box-shadow: 0 0 0 2px rgba(72, 187, 120, 0.3); }
+    }
+
+    /* Error message */
+    .error-message {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: var(--bg-card);
+      border: 1px solid var(--error);
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+      color: var(--error);
+      max-width: 400px;
+      z-index: 150;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      #header {
+        height: 60px;
+        padding: 0 12px;
+      }
+
+      .logo-text {
+        font-size: 28px;
+      }
+
+      .logo-subtitle {
+        font-size: 10px;
+      }
+
+      .btn {
+        padding: 10px 14px;
+        font-size: 13px;
+      }
+
+      #canvas-container {
+        top: 60px;
+      }
+
+      .loading-card {
+        padding: 20px;
+      }
+
+      #info-panel, #controls-help {
+        bottom: 12px;
+        left: 12px;
+        right: 12px;
+        width: auto;
+        min-width: auto;
+      }
+
+      #toolbar {
+        top: 70px;
+        left: 12px;
+      }
+    }
+  </style>
+
   <script type="importmap">
   {
     "imports": {
-      "web-ifc-viewer": "https://unpkg.com/web-ifc-viewer@0.0.132/dist/ifc.min.js",
-      "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
     }
   }
   </script>
+
 </head>
 <body>
-<div id="app">
-  <div id="toolbar">
-    <button id="open" class="btn">Deschide model</button>
-    <button id="fit" class="btn">Fit</button>
-    <button id="isolate" class="btn">Izolează selecția</button>
-    <button id="hide" class="btn">Ascunde selecția</button>
-    <button id="unhide" class="btn">Arată tot</button>
-    <button id="measure" class="btn" aria-pressed="false">Măsurare</button>
-    <button id="screenshot" class="btn">Screenshot</button>
-    <button id="helpBtn" class="btn">Ajutor</button>
-    <input id="file" hidden type="file" accept=".ifc,.IFC" />
-  </div>
-  <div id="viewer"></div>
-  <aside id="sidebar">
-    <header>Inspector</header>
-    <div class="section">
-      <div><b>Etaje (BuildingStorey)</b></div>
-      <div id="storeys" class="small"></div>
-    </div>
-    <div class="section">
-      <div style="display:flex;gap:8px;align-items:center;">
-        <b>Categorii IFC</b>
-        <span class="small" style="margin-left:auto">Preset:</span>
-        <button id="presetStruct" class="btn small">Structură</button>
-        <button id="presetFinisaje" class="btn small">Finisaje</button>
+  <div id="viewer-container">
+    <!-- Header -->
+    <div id="header">
+      <div class="logo">
+        <div class="logo-container">
+          <img src="Ergio.png" alt="ERGIO" class="logo-image">
+        </div>
       </div>
-      <div id="cats" class="small" style="margin-top:6px"></div>
+      
+      <div class="header-controls">
+        <div style="display: flex; align-items: center;">
+          <div class="status-indicator"></div>
+          <span style="font-size: 12px; color: var(--text-muted);">Ready</span>
+        </div>
+        
+        <button class="btn primary" id="openBtn">
+          <svg class="btn-icon" viewBox="0 0 24 24">
+            <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+          </svg>
+          Deschide Model
+        </button>
+        <input type="file" id="fileInput" accept=".ifc,.IFC,application/x-step,.xkt,.XKT,.glb,.GLB,model/gltf-binary,.gltf,.GLTF,model/gltf+json,application/json" style="display:none">
+        
+        <button class="btn" id="fitBtn">
+          <svg class="btn-icon" viewBox="0 0 24 24">
+            <path d="M9,3V4H4V6H5V19A2,2 0 0,0 7,21H17A2,2 0 0,0 19,19V6H20V4H15V3H9M7,6H17V19H7V6M9,8V17H11V8H9M13,8V17H15V8H13Z"/>
+          </svg>
+          Centrează
+        </button>
+        
+        <button class="btn" id="helpBtn">
+          <svg class="btn-icon" viewBox="0 0 24 24">
+            <path d="M11,18H13V16H11V18M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,20C7.59,20 4,16.41 4,12C7.59,8 4,12A10,10 0 0,0 12,4A10,10 0 0,0 20,12C20,16.41 16.41,20 12,20M12,6A4,4 0 0,0 8,10H10A2,2 0 0,1 12,8A2,2 0 0,1 14,10C14,12 11,11.75 11,15H13C13,12.75 16,12.5 16,10A4,4 0 0,0 12,6Z"/>
+          </svg>
+          Ajutor
+        </button>
+      </div>
     </div>
-    <div class="section">
-      <div id="sel" class="small">Selecție: (nimic)</div>
-    </div>
-    <div id="tree"></div>
-  </aside>
-</div>
 
-<div id="help">
-  <div class="card">
-    <h2>Cadwork IFC Viewer PRO — Ghid rapid</h2>
-    <ul>
-      <li><b>Încărcare:</b> butonul „Deschide model” sau trage fișierul .IFC în fereastră.</li>
-      <li><b>Inspector:</b> bifează <i>Etaje</i> și <i>Categorii</i> pentru a ascunde/arăta rapid. Preset <i>Structură</i> / <i>Finisaje</i>.</li>
-      <li><b>Măsurare:</b> activează „Măsurare”, apoi tap pe două puncte din scenă (se vede distanța). „Măsurare” din nou pentru a ieși.</li>
-      <li><b>Selecție:</b> click pe element → „Izolează selecția” sau „Ascunde selecția”. „Arată tot” revine la vizibil.</li>
-      <li><b>Screenshot:</b> salvează imaginea actuală ca PNG.</li>
-      <li><b>Offline:</b> după prima deschidere, aplicația funcționează și fără internet.</li>
-    </ul>
-    <div style="text-align:right;margin-top:8px">
-      <button id="closeHelp" class="btn">Închide</button>
+    <!-- Toolbar -->
+    <div id="toolbar">
+      <div class="tool-group">
+        <button class="tool-btn active" id="orbitBtn" title="Orbit">
+          <svg class="btn-icon" viewBox="0 0 24 24">
+            <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4Z"/>
+          </svg>
+        </button>
+        <button class="tool-btn" id="panBtn" title="Pan">
+          <svg class="btn-icon" viewBox="0 0 24 24">
+            <path d="M13,6V11H18V7.75L22.25,12L18,16.25V13H13V18H16.25L12,22.25L7.75,18H11V13H6V16.25L1.75,12L6,7.75V11H11V6H7.75L12,1.75L16.25,6H13Z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Main canvas container -->
+    <div id="canvas-container">
+      <canvas id="xeokit-canvas"></canvas>
+    <div id="three-container" style="position:absolute; inset:0; display:none;"></div>
+    </div>
+
+    <!-- Loading overlay -->
+    <div id="loading">
+      <div class="loading-card">
+        <div class="loading-header">
+          <div class="loading-title">Încărcare model BIM</div>
+          <div class="loading-percentage" id="percentage">0%</div>
+        </div>
+        <div class="progress-bar">
+          <span class="progress-fill" id="progressBar"></span>
+        </div>
+        <div class="loading-message" id="loadingMessage">Inițializare ERGIO...</div>
+      </div>
+    </div>
+
+    <!-- Model info panel -->
+    <div id="info-panel">
+      <div class="info-title">📊 Informații Model</div>
+      <div class="info-item">
+        <span class="info-label">Fișier:</span>
+        <span class="info-value" id="fileName">-</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Dimensiune:</span>
+        <span class="info-value" id="fileSize">-</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Entități:</span>
+        <span class="info-value" id="entityCount">-</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Format:</span>
+        <span class="info-value" id="fileFormat">-</span>
+      </div>
+    </div>
+
+    <!-- Controls help -->
+    <div id="controls-help">
+      <div class="help-title">
+        <svg class="btn-icon" viewBox="0 0 24 24">
+          <path d="M12,2A3,3 0 0,1 15,5V11A3,3 0 0,1 12,14A3,3 0 0,1 9,11V5A3,3 0 0,1 12,2M19,11C19,14.53 16.39,17.44 13,17.93V21H11V17.93C7.61,17.44 5,14.53 5,11H7A5,5 0 0,0 12,16A5,5 0 0,0 17,11H19Z"/>
+        </svg>
+        Comenzi Navigare
+      </div>
+      <div class="help-item">
+        <span class="help-action">Rotire cameră:</span>
+        <span class="help-keys">Click stânga + drag</span>
+      </div>
+      <div class="help-item">
+        <span class="help-action">Panoramare:</span>
+        <span class="help-keys">Click dreapta + drag</span>
+      </div>
+      <div class="help-item">
+        <span class="help-action">Zoom:</span>
+        <span class="help-keys">Scroll mouse</span>
+      </div>
+      <div class="help-item">
+        <span class="help-action">Pe mobile:</span>
+        <span class="help-keys">Touch & pinch</span>
+      </div>
+      <div class="help-item" style="margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);">
+        <span class="help-action" style="font-weight: 600;">Formate suportate:</span>
+      </div>
+      <div class="help-item">
+        <span class="help-action">.IFC, .XKT, .GLB, .GLTF</span>
+      </div>
     </div>
   </div>
-</div>
 
-<div id="status">Gata — încarcă un fișier .IFC</div>
-<div id="progress"><div id="bar"></div></div>
+  <script type="module">
+    import * as THREE from "three";
+    import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
-<script type="module">
-import { IfcViewerAPI } from 'web-ifc-viewer';
-import * as THREE from 'three';
+    // Import pentru Xeokit
+    import { Viewer, XKTLoaderPlugin, WebIFCLoaderPlugin, GLTFLoaderPlugin } from "https://cdn.jsdelivr.net/npm/@xeokit/xeokit-sdk/dist/xeokit-sdk.es.min.js";
+    
+    // Import Three.js pentru GLB/GLTF loading
+// Global variables
+    let viewer;
+    let currentModel = null;
+    let xktLoader, webIfcLoader, gltfLoader, threejsLoader;
+    // Three.js fallback state
+    let threeRenderer, threeScene, threeCamera, threeControls, threeCurrent;
+function ensureThreeRenderer() {
+          const container = document.getElementById("three-container");
+          if (!threeRenderer) {
+            threeRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            threeRenderer.setPixelRatio(window.devicePixelRatio || 1);
+            threeRenderer.setSize(container.clientWidth || window.innerWidth, container.clientHeight || window.innerHeight);
+            container.appendChild(threeRenderer.domElement);
 
-async function main(){
-  const container = document.getElementById('viewer');
-  const viewer = new IfcViewerAPI({ container, backgroundColor: new THREE.Color(0xe5e7eb) });
-  // NO top-level await; wait inside main
-  try{ await viewer.IFC.setWasmPath("https://unpkg.com/web-ifc@0.0.43/"); }catch(e){ console.error('WASM path set error', e); }
-  viewer.grid.setGrid(); viewer.axes.setAxes();
+            threeScene = new THREE.Scene();
+            threeCamera = new THREE.PerspectiveCamera(60, (container.clientWidth||window.innerWidth)/(container.clientHeight||window.innerHeight), 0.1, 10000);
+            threeCamera.position.set(10, 10, 10);
+            threeControls = new OrbitControls(threeCamera, threeRenderer.domElement);
+            threeControls.enableDamping = true;
 
-  // UI refs
-  const fileIn = document.getElementById('file');
-  const openBtn = document.getElementById('open');
-  const fitBtn = document.getElementById('fit');
-  const isolateBtn = document.getElementById('isolate');
-  const hideBtn = document.getElementById('hide');
-  const unhideBtn = document.getElementById('unhide');
-  const measureBtn = document.getElementById('measure');
-  const screenshotBtn = document.getElementById('screenshot');
-  const statusEl = document.getElementById('status'); 
-  const bar = document.getElementById('bar');
-  const help = document.getElementById('help'); 
-  const helpBtn = document.getElementById('helpBtn'); 
-  const closeHelp = document.getElementById('closeHelp');
-  const storeysEl = document.getElementById('storeys'); 
-  const catsEl = document.getElementById('cats'); 
-  const selEl = document.getElementById('sel');
+            const amb = new THREE.AmbientLight(0xffffff, 1);
+            threeScene.add(amb);
 
-  let modelID=null, lastSelection=null, measuring=false, measurePts=[], measureLine=null;
+            window.addEventListener('resize', () => {
+              const w = container.clientWidth || window.innerWidth;
+              const h = container.clientHeight || window.innerHeight;
+              if (threeCamera) { threeCamera.aspect = w/h; threeCamera.updateProjectionMatrix(); }
+              if (threeRenderer) threeRenderer.setSize(w, h);
+            });
 
-  // progress (guarded)
-  try{
-    viewer.IFC.loader.ifcManager.state.api.onProgress = (p)=>{ try{ bar.style.width=(p*100).toFixed(1)+'%'; }catch{} };
-  }catch{}
+            const animate = () => {
+              requestAnimationFrame(animate);
+              if (threeControls) threeControls.update();
+              if (threeRenderer && threeScene && threeCamera) threeRenderer.render(threeScene, threeCamera);
+            };
+            animate();
+          }
+          return document.getElementById("three-container");
+        }
 
-  const setStatus=(t)=> statusEl.textContent=t;
+    // UI elements
+    const canvasElement = document.getElementById('xeokit-canvas');
+    const openBtn = document.getElementById('openBtn');
+    const fileInput = document.getElementById('fileInput');
+    const helpBtn = document.getElementById('helpBtn');
+    const fitBtn = document.getElementById('fitBtn');
+    const loading = document.getElementById('loading');
+    const progressBar = document.getElementById('progressBar');
+    const percentage = document.getElementById('percentage');
+    const loadingMessage = document.getElementById('loadingMessage');
+    const infoPanel = document.getElementById('info-panel');
+    const controlsHelp = document.getElementById('controls-help');
 
-  // File open
-  openBtn.addEventListener('click', ()=> { console.log('Buton apăsat: Deschide model'); fileIn.click(); });
-  fileIn.addEventListener('change', async (e)=>{ const f=e.target.files?.[0]; if (f) await loadIfc(f); });
+    // Tool buttons
+    const orbitBtn = document.getElementById('orbitBtn');
+    const panBtn = document.getElementById('panBtn');
 
-  // Drag & drop
-  const stop=(e)=>{ e.preventDefault(); e.stopPropagation(); };
-  ['dragenter','dragover','dragleave','drop'].forEach(ev=>{ window.addEventListener(ev, stop, {passive:false}); document.body.addEventListener(ev, stop, {passive:false}); });
-  document.addEventListener('drop', async (e)=>{ const f=e.dataTransfer?.files?.[0]; if (f) await loadIfc(f); }, {passive:false});
+    // Initialize Xeokit viewer
+    function initViewer() {
+      try {
+        console.log("🏗️ Inițializare ERGIO Viewer...");
+        
+        // Verifică că canvas-ul există
+        if (!canvasElement) {
+          throw new Error("Canvas element nu a fost găsit!");
+        }
 
-  async function loadIfc(file){
-    setStatus('Se încarcă '+file.name+' ...');
-    const model = await viewer.IFC.loadIfcFile(file, true);
-    modelID = model.modelID;
-    viewer.shadowDropper.darkness = 0.25;
-    viewer.shadowDropper.renderShadow(model.mesh);
-    await buildInspector();
-    setStatus('Încărcat: '+file.name);
-  }
+        // Creează viewer-ul cu canvas element
+        viewer = new Viewer({
+          canvasElement: canvasElement,
+          transparent: true,
+          pbrEnabled: false,
+          colorTextureEnabled: true
+        });
 
-  // Inspector
-  async function buildInspector(){
-    const spatial = await viewer.IFC.getSpatialStructure(modelID);
-    storeysEl.innerHTML='';
-    const storeyNodes=[];
-    (function walk(n){ if (!n) return; if (n.type==='IFCBUILDINGSTOREY') storeyNodes.push(n); (n.children||[]).forEach(walk); })(spatial);
-    storeyNodes.forEach(st=>{
-      const label=document.createElement('label'); label.style.display='block';
-      const cb=document.createElement('input'); cb.type='checkbox'; cb.checked=true; cb.dataset.storey=st.expressID;
-      cb.onchange = ()=> toggleStorey(st.expressID, cb.checked);
-      label.appendChild(cb); const span=document.createElement('span'); span.textContent=' '+(st.name || ('Storey '+st.expressID));
-      label.appendChild(span); storeysEl.appendChild(label);
-    });
+        // Configurare cameră
+        viewer.camera.eye = [20, 20, 20];
+        viewer.camera.look = [0, 0, 0];
+        viewer.camera.up = [0, 1, 0];
 
-    const IFC = viewer.IFC.loader.ifcManager.types;
-    const CATS = [
-      'IFCWALL','IFCSLAB','IFCBEAM','IFCCOLUMN','IFCROOF','IFCPLATE','IFCMEMBER',
-      'IFCWINDOW','IFCDOOR','IFCCOVERING','IFCFURNISHINGELEMENT','IFCRAILING','IFCRAMP','IFCSTAIR'
-    ].filter(k=> IFC[k] !== undefined);
+        // Configurare iluminat
+        if (viewer.scene && viewer.scene.ambientLight) {
+          viewer.scene.ambientLight.color = [0.3, 0.3, 0.4];
+          viewer.scene.ambientLight.intensity = 1.0;
+        }
 
-    catsEl.innerHTML='';
-    for (const cat of CATS){
-      const type = IFC[cat];
-      const ids = await viewer.IFC.loader.ifcManager.getAllItemsOfType(modelID, type, false);
-      if (!ids.length) continue;
-      const label=document.createElement('label'); label.style.display='block';
-      const cb=document.createElement('input'); cb.type='checkbox'; cb.checked=true; cb.dataset.cat=type;
-      cb.onchange = ()=> toggleCategory(type, cb.checked);
-      label.appendChild(cb);
-      const span=document.createElement('span'); span.textContent=' '+cat+' ('+ids.length+')';
-      label.appendChild(span);
-      catsEl.appendChild(label);
+        if (viewer.scene && viewer.scene.lights && viewer.scene.lights.lights && viewer.scene.lights.lights[0]) {
+          const dirLight = viewer.scene.lights.lights[0];
+          dirLight.dir = [0.8, -0.6, -0.8];
+          dirLight.color = [1.0, 1.0, 1.0];
+          dirLight.intensity = 1.0;
+          dirLight.space = "view";
+        }
+
+        // Inițializare loadere cu error handling robust
+        try {
+          xktLoader = new XKTLoaderPlugin(viewer);
+          console.log("✅ XKT Loader inițializat");
+        } catch (e) {
+          console.warn("⚠️ XKT Loader nu a putut fi inițializat:", e.message);
+        }
+
+        try {
+          webIfcLoader = new WebIFCLoaderPlugin(viewer, {
+            wasmPath: "https://unpkg.com/web-ifc@0.0.69/"
+          });
+          console.log("✅ WebIFC Loader inițializat");
+        } catch (e) {
+          console.warn("⚠️ WebIFC Loader nu a putut fi inițializat:", e.message);
+        }
+
+        // Three.js GLTFLoader pentru fișiere GLB/GLTF
+        try {
+          gltfLoader = new GLTFLoaderPlugin(viewer);
+          console.log("✅ Xeokit GLTF Loader inițializat");
+        } catch (e) {
+          console.warn("⚠️ GLTF Loader nu a putut fi inițializat:", e.message);
+        }
+
+        // Fallback Three.js loader for local GLB/GLTF
+        try {
+          threejsLoader = new GLTFLoader();
+          console.log("✅ Three.js GLTF Loader inițializat (fallback)");
+        } catch (e) {
+          console.warn("⚠️ Three.js GLTF Loader fallback indisponibil:", e.message);
+        }
+
+
+        
+        // === Three.js fallback renderer (for GLB/GLTF) ===
+        
+console.log("🎉 ERGIO Viewer inițializat cu succes!");
+        loadingMessage.textContent = "ERGIO BIM Viewer pregătit!";
+
+        // Configurare canvas pentru resize
+        viewer.scene.canvas.boundary = canvasElement.getBoundingClientRect();
+
+        return true;
+
+      } catch (error) {
+        console.error("❌ Eroare la inițializare ERGIO Viewer:", error);
+        loadingMessage.textContent = `Eroare: ${error.message}`;
+        return false;
+      }
     }
 
-    document.getElementById('presetStruct').onclick = ()=>{
-      catsEl.querySelectorAll('input[type=checkbox]').forEach(cb=>{
-        const row = cb.nextSibling.textContent;
-        const keep = /(WALL|SLAB|BEAM|COLUMN|ROOF|PLATE|MEMBER)/.test(row);
-        cb.checked = keep;
-        toggleCategory(parseInt(cb.dataset.cat), keep, false);
+    // Event listeners
+    function setupEventListeners() {
+      openBtn.addEventListener('click', () => fileInput.click());
+      
+      fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          loadModelFile(file);
+        }
       });
-      viewer.context.renderer.postProduction.update();
-    };
-    document.getElementById('presetFinisaje').onclick = ()=>{
-      catsEl.querySelectorAll('input[type=checkbox]').forEach(cb=>{
-        const row = cb.nextSibling.textContent;
-        const keep = /(WINDOW|DOOR|COVERING|FURNISHING)/.test(row);
-        cb.checked = keep;
-        toggleCategory(parseInt(cb.dataset.cat), keep, false);
-      });
-      viewer.context.renderer.postProduction.update();
-    };
-  }
 
-  async function toggleStorey(storeyId, visible){
-    const rels = await viewer.IFC.getSpatialStructure(modelID);
-    const targets=[];
-    (function collect(node, active){
-      const isStorey = node.type==='IFCBUILDINGSTOREY' && node.expressID===storeyId;
-      const nowActive = active || isStorey;
-      (node.children||[]).forEach(ch=>{
-        if (nowActive && ch.expressID) targets.push(ch.expressID);
-        collect(ch, nowActive);
+      helpBtn.addEventListener('click', () => {
+        controlsHelp.style.display = controlsHelp.style.display === 'none' ? 'block' : 'none';
       });
-    })(rels,false);
-    if (visible) await viewer.IFC.showItems(modelID, targets);
-    else await viewer.IFC.hideItems(modelID, targets);
-  }
 
-  async function toggleCategory(type, visible, update=true){
-    if (visible) await viewer.IFC.showAllItemsOfType(modelID, type);
-    else {
-      const ids = await viewer.IFC.loader.ifcManager.getAllItemsOfType(modelID, type, false);
-      await viewer.IFC.hideItems(modelID, ids.map(x=>x.expressID||x));
+      fitBtn.addEventListener('click', () => {
+        if (currentModel && viewer) {
+          try {
+            viewer.cameraFlight.flyTo({
+              aabb: viewer.scene.getAABB(),
+              duration: 1.0
+            });
+          } catch (e) {
+            console.warn("Nu s-a putut centra camera:", e.message);
+          }
+        }
+      });
+
+      // Tool buttons
+      orbitBtn.addEventListener('click', () => {
+        setActiveNavMode('orbit');
+        if (viewer && viewer.cameraControl) {
+          viewer.cameraControl.navMode = "orbit";
+        }
+      });
+
+      panBtn.addEventListener('click', () => {
+        setActiveNavMode('pan');
+        if (viewer && viewer.cameraControl) {
+          viewer.cameraControl.navMode = "firstPerson";
+        }
+      });
+
+      // Hide help panel when clicking outside
+      document.addEventListener('click', (e) => {
+        if (!helpBtn.contains(e.target) && !controlsHelp.contains(e.target)) {
+          controlsHelp.style.display = 'none';
+        }
+      });
+
+      // Drag and drop
+      canvasElement.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      });
+
+      canvasElement.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+          const file = files[0];
+          const ext = file.name.toLowerCase().split('.').pop();
+          if (['ifc', 'xkt', 'glb', 'gltf'].includes(ext)) {
+            loadModelFile(file);
+          } else {
+            console.warn('Format nesuportat:', ext);
+            alert('Format nesuportat!\n\nFormate acceptate:\n• .IFC (Building Information Modeling)\n• .XKT (Xeokit optimizat)\n• .GLB (GLTF binar)\n• .GLTF (GLTF text)');
+          }
+        }
+      });
+
+      // Window resize
+      window.addEventListener('resize', () => {
+        if (viewer && viewer.scene && viewer.scene.canvas) {
+          viewer.scene.canvas.boundary = canvasElement.getBoundingClientRect();
+        }
+      });
     }
-    if (update) viewer.context.renderer.postProduction.update();
-  }
 
-  // Selection
-  window.onpointerdown = async ()=>{
-    const res = await viewer.IFC.selector.pickIfcItem();
-    if (!res) { lastSelection=null; selEl.textContent='Selecție: (nimic)'; return; }
-    lastSelection = res;
-    selEl.textContent = 'Selecție: '+res.type+' #'+res.expressID;
-  };
-  isolateBtn.onclick = ()=>{ if (lastSelection) viewer.IFC.selector.isolateSelection(); };
-  hideBtn.onclick = async ()=>{
-    if (!lastSelection) return;
-    await viewer.IFC.hideItems(lastSelection.modelID, [lastSelection.expressID]);
-    lastSelection=null; selEl.textContent='Selecție: (nimic)';
-  };
-  unhideBtn.onclick = async ()=>{ await viewer.IFC.showAllItems(modelID); };
-
-  fitBtn.onclick = ()=> viewer.context.ifcCamera.fitModelToFrame();
-
-  // Measure (two points)
-  measureBtn.onclick = ()=>{ measuring=!measuring; measureBtn.setAttribute('aria-pressed', measuring); if (!measuring) clearMeasure(); };
-  function clearMeasure(){
-    measurePts=[];
-    if (measureLine){ viewer.context.getScene().remove(measureLine); measureLine=null; }
-    setStatus('Măsurare oprită');
-  }
-  window.addEventListener('click', async (e)=>{
-    if (!measuring) return;
-    const result = await viewer.context.castRayIfc();
-    if(!result) return;
-    const pt = result.point;
-    measurePts.push(pt);
-    if (measurePts.length===2){
-      const g = new THREE.BufferGeometry().setFromPoints(measurePts);
-      const m = new THREE.LineBasicMaterial({ color: 0x2563eb });
-      if (measureLine) viewer.context.getScene().remove(measureLine);
-      measureLine = new THREE.Line(g, m);
-      viewer.context.getScene().add(measureLine);
-      const d = measurePts[0].distanceTo(measurePts[1]);
-      setStatus('Distanță: '+(d*1000).toFixed(1)+' mm');
-      measurePts=[];
-    } else {
-      setStatus('Primul punct selectat. Alege al doilea punct…');
+    // Set active navigation mode
+    function setActiveNavMode(mode) {
+      [orbitBtn, panBtn].forEach(btn => btn.classList.remove('active'));
+      if (mode === 'orbit') {
+        orbitBtn.classList.add('active');
+      } else if (mode === 'pan') {
+        panBtn.classList.add('active');
+      }
     }
-  });
 
-  screenshotBtn.onclick = ()=>{
-    const link = document.createElement('a');
-    link.download='screenshot.png';
-    link.href = viewer.context.renderer.getCanvas().toDataURL('image/png');
-    link.click();
-  };
+    // Load model file
+    async function loadModelFile(file) {
+      try {
+        if (!viewer) {
+          throw new Error("Viewer-ul nu este inițializat!");
+        }
 
-  // Help overlay
-  helpBtn.onclick = ()=> help.style.display='flex';
-  closeHelp.onclick = ()=> help.style.display='none';
+        // Show loading overlay
+        loading.style.display = 'flex';
+        progressBar.style.width = '0%';
+        percentage.textContent = '0%';
+        loadingMessage.textContent = 'Pregătire încărcare...';
+        // Start simulated progress early (used by all loaders, including GLB fallback)
+        let progress = 0;
+        const progressInterval = setInterval(() => {
+          progress += Math.random() * 10;
+          if (progress > 85) progress = 85;
+          updateProgress(progress);
+        }, 200);
 
-  // Adaptive pixel ratio
-  const renderer = viewer.context.renderer;
-  renderer.renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 1.5));
-}
 
-// start
-main().catch(err=>{
-  console.error('Init error:', err);
-  alert('Eroare la inițializare. Verifică dacă browserul suportă module ES și import maps.');
-});
-</script>
+        // Remove existing model
+        if (currentModel) {
+          viewer.scene.destroyModel(currentModel.id);
+          currentModel = null;
+        }
+
+        const fileExt = file.name.toLowerCase().split('.').pop();
+        let isGLTF = false;
+        const fileUrl = URL.createObjectURL(file);
+        const modelId = "model_" + Date.now();
+
+        console.log(`📁 Încărcare fișier: ${file.name} (${fileExt.toUpperCase()})`);
+
+        let loader;
+        switch (fileExt) {
+          case 'ifc':
+            if (!webIfcLoader) throw new Error('IFC Loader nu este disponibil');
+            loader = webIfcLoader;
+            loadingMessage.textContent = 'Procesare fișier IFC...';
+            console.log("🔧 Folosesc WebIFC Loader");
+            break;
+          case 'xkt':
+            if (!xktLoader) throw new Error('XKT Loader nu este disponibil');
+            loader = xktLoader;
+            loadingMessage.textContent = 'Încărcare fișier XKT...';
+            console.log("🔧 Folosesc XKT Loader");
+            break;
+          case 'glb':
+          case 'gltf':
+            console.log("🔧 Folosesc GLTF Loader (fallback Three.js) pentru", fileExt.toUpperCase());
+            loadGLTFWithThreeJS(file, fileUrl, modelId, progressInterval);
+            return;
+          default:
+            throw new Error('Format de fișier nesuportat: ' + fileExt);
+        }
+
+        
+        // Load the model cu configurări specifice pentru fiecare tip
+        let loadConfig = {
+          id: modelId,
+          src: fileUrl
+        };
+
+        // Configurări specifice pentru fiecare tip de fișier
+        if (fileExt === 'glb' || fileExt === 'gltf') {
+          // Configurări optime pentru GLB/GLTF
+          loadConfig.includeTextures = true;
+          loadConfig.excludeUnclassifiedObjects = false;
+          loadConfig.reuseGeometries = true;
+          loadConfig.createMetaModel = true;
+          loadConfig.edges = false;
+          loadConfig.saoEnabled = false;
+        } else if (fileExt === 'ifc') {
+          // Configurări pentru IFC
+          loadConfig.edges = true;
+          loadConfig.saoEnabled = false;
+          loadConfig.excludeTypes = [];
+        } else {
+          // Configurări pentru XKT
+          loadConfig.edges = false;
+          loadConfig.saoEnabled = false;
+        }
+
+        if (isGLTF) {
+          // GLTF loader cere doar id + src
+          loadConfig = { id: modelId, src: fileUrl };
+        }
+        console.log("🚀 Pornesc încărcarea cu configurațiile:", loadConfig);
+        currentModel = loader.load(loadConfig);
+
+        currentModel.on("loaded", () => {
+          clearInterval(progressInterval);
+          updateProgress(100);
+          loadingMessage.textContent = 'Model încărcat cu succes!';
+          
+          // Update info panel
+          updateInfoPanel(file, currentModel);
+          
+          // Fit view to model
+          setTimeout(() => {
+            try {
+              viewer.cameraFlight.flyTo({
+                aabb: viewer.scene.getAABB(),
+                duration: 1.5
+              });
+            } catch (e) {
+              console.warn("Nu s-a putut ajusta camera:", e.message);
+            }
+          }, 300);
+
+          setTimeout(() => {
+            loading.style.display = 'none';
+          }, 1000);
+
+          // Clean up
+          URL.revokeObjectURL(fileUrl);
+        });
+
+        currentModel.on("error", (error) => {
+          clearInterval(progressInterval);
+          console.error('Eroare la încărcare model:', error);
+          loadingMessage.textContent = `Eroare: ${error.message || 'Încărcare eșuată'}`;
+          setTimeout(() => {
+            loading.style.display = 'none';
+          }, 3000);
+          URL.revokeObjectURL(fileUrl);
+        });
+
+      } catch (error) {
+        console.error('Eroare la încărcare fișier:', error);
+        loadingMessage.textContent = `Eroare: ${error.message}`;
+        setTimeout(() => {
+          loading.style.display = 'none';
+        }, 3000);
+      }
+    }
+
+    // Update progress bar
+    function updateProgress(progress) {
+      progress = Math.max(0, Math.min(100, progress));
+      progressBar.style.width = progress.toFixed(1) + '%';
+      percentage.textContent = progress.toFixed(0) + '%';
+    }
+
+    // Update info panel
+    function updateInfoPanel(file, model) {
+      document.getElementById('fileName').textContent = file.name;
+      document.getElementById('fileSize').textContent = (file.size / 1048576).toFixed(1) + ' MB';
+      document.getElementById('fileFormat').textContent = file.name.split('.').pop().toUpperCase();
+      
+      // Count entities
+      setTimeout(() => {
+        try {
+          const entityCount = Object.keys(viewer.scene.objects).length;
+          document.getElementById('entityCount').textContent = entityCount;
+        } catch (e) {
+          document.getElementById('entityCount').textContent = 'N/A';
+        }
+      }, 500);
+      
+      infoPanel.classList.add('visible');
+    }
+
+    // Initialize everything
+    function init() {
+      console.log("🚀 Inițializare ERGIO Professional BIM Viewer");
+      
+      // Verifică dacă browser-ul suportă WebGL
+      const canvas = document.createElement('canvas');
+      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+      if (!gl) {
+        loadingMessage.textContent = 'Browser-ul nu suportă WebGL!';
+        return;
+      }
+
+      const viewerReady = initViewer();
+      if (viewerReady) {
+        setupEventListeners();
+        console.log("🎉 ERGIO Professional BIM Viewer - Gata de utilizare!");
+      }
+    }
+
+    
+
+    // === Fallback GLB/GLTF via Three.js ===
+function loadGLTFWithThreeJS(file, fileUrl, modelId, progressInterval) {
+      try {
+        const container = ensureThreeRenderer();
+        // Ascunde canvas-ul Xeokit și arată Three.js container
+        document.getElementById('xeokit-canvas').style.display = 'none';
+        container.style.display = 'block';
+
+        // curăță scena veche
+        if (threeCurrent) { threeScene.remove(threeCurrent); threeCurrent.traverse?.(o=>{ if(o.geometry) o.geometry.dispose?.(); if(o.material) { if(Array.isArray(o.material)) o.material.forEach(m=>m.dispose?.()); else o.material.dispose?.(); }}); }
+        threeCurrent = null;
+
+        threejsLoader.load(
+          fileUrl,
+          (gltf) => {
+            clearInterval(progressInterval);
+            updateProgress(100);
+            loadingMessage.textContent = 'Model GLB încărcat cu succes!';
+
+            threeCurrent = gltf.scene;
+            threeScene.add(threeCurrent);
+
+            // Fit camera to object
+            const box = new THREE.Box3().setFromObject(threeCurrent);
+            const size = new THREE.Vector3(); box.getSize(size);
+            const center = new THREE.Vector3(); box.getCenter(center);
+            const maxDim = Math.max(size.x, size.y, size.z);
+            const fov = threeCamera.fov * (Math.PI / 180);
+            let cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
+            cameraZ *= 1.5;
+            threeCamera.position.set(center.x + cameraZ, center.y + cameraZ, center.z + cameraZ);
+            threeControls.target.copy(center);
+            threeControls.update();
+
+            setTimeout(() => { loading.style.display = 'none'; }, 500);
+            URL.revokeObjectURL(fileUrl);
+          },
+          (progress) => {
+            if (progress.lengthComputable) {
+              const percent = (progress.loaded / progress.total) * 100;
+              updateProgress(percent * 0.85);
+            }
+          },
+          (err) => {
+            clearInterval(progressInterval);
+            console.error('Eroare la încărcare GLB cu Three.js:', err);
+            loadingMessage.textContent = 'Eroare la încărcare GLB';
+            setTimeout(() => { loading.style.display = 'none'; }, 500);
+          }
+        );
+      } catch (e) {
+        clearInterval(progressInterval);
+        console.error('Eroare fallback Three.js:', e);
+        loadingMessage.textContent = 'Eroare Three.js';
+      }
+    }
+
+    function convertThreeJSToXeokit(threeScene, modelId) {
+      // Creează un model nou în scena Xeokit
+      const model = viewer.scene.createModel({ id: modelId });
+      let meshCount = 0;
+
+      threeScene.updateMatrixWorld(true);
+      threeScene.traverse((child) => {
+        if (child.isMesh && child.geometry && child.geometry.attributes && child.geometry.attributes.position) {
+          const geometry = child.geometry;
+          const positions = geometry.attributes.position.array;
+          const indices = geometry.index ? geometry.index.array : null;
+          const normals = geometry.attributes.normal ? geometry.attributes.normal.array : null;
+          const uvs = geometry.attributes.uv ? geometry.attributes.uv.array : null;
+
+          // 1) Creează geometria în model
+          const geomId = `geom_${meshCount}`;
+          model.createGeometry({
+            id: geomId,
+            primitive: "triangles",
+            positions,
+            indices,
+            normals,
+            uv: uvs
+          });
+
+          // 2) Creează mesh-ul ce folosește geometria
+          const meshId = `mesh_${meshCount}`;
+          model.createMesh({
+            id: meshId,
+            geometryId: geomId,
+            color: (child.material && child.material.color) ? [child.material.color.r, child.material.color.g, child.material.color.b] : [0.8, 0.8, 0.8]
+          });
+
+          // 3) Creează entitatea și îi aplică transformarea world
+          const objectId = `object_${meshCount}`;
+          model.createEntity({
+            id: objectId,
+            meshIds: [meshId],
+            matrix: child.matrixWorld.elements,
+            isObject: true
+          });
+
+          meshCount++;
+        }
+      });
+
+      model.finalize();
+      console.log(`✅ Convertit ${meshCount} mesh-uri din Three.js în Xeokit`);
+      currentModel = model;
+    }
+
+// Start the application
+    init();
+
+    // Optional PWA service worker registration
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(() => {
+          // Ignore service worker errors
+        });
+      });
+    }
+  </script>
 </body>
 </html>
