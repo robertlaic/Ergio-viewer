@@ -1,0 +1,502 @@
+<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>Cadwork Viewer PRO+</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#0f1115"/>
+  <style>
+    :root { --bg:#0f1115; --panel:#161b22; --text:#eaeaea; --muted:#9fb0d1; --accent:#6bbcff; }
+    html,body{height:100%;margin:0;font-family:system-ui,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--text)}
+    canvas{display:block; touch-action:none}
+    #app{position:fixed;inset:0;overflow:hidden}
+    #progress{height:4px;background:#2a3446;position:fixed;left:0;right:0;top:0;z-index:20}
+    #bar{height:100%;width:0%;background:var(--accent);transition:width .1s}
+    #toolbar{position:fixed;top:10px;left:10px;display:flex;gap:8px;z-index:15;flex-wrap:wrap}
+    .btn{background:#1e2633;border:1px solid #2a3446;border-radius:10px;padding:8px 10px;font-size:14px;cursor:pointer;color:var(--text)}
+    .btn:hover{filter:brightness(1.1)}
+    .btn[aria-pressed="true"]{outline:2px solid var(--accent)}
+    #status{position:fixed;left:10px;bottom:10px;background:#1e2633cc;padding:6px 10px;border-radius:8px;font-size:12px;z-index:15}
+    #sidebar{position:fixed;right:10px;top:10px;bottom:10px;width:300px;background:var(--panel);border:1px solid #2a3446;border-radius:12px;z-index:14;display:flex;flex-direction:column;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+    #sidebar header{padding:10px 12px;border-bottom:1px solid #2a3446;font-weight:600}
+    #sidebar .section{padding:10px 12px;border-bottom:1px solid #2a3446}
+    #sidebar .section:last-child{border-bottom:none}
+    #tree{flex:1;overflow:auto;padding:8px 12px}
+    .row{display:flex;align-items:center;gap:6px;margin:4px 0}
+    .row input[type=checkbox]{transform:scale(1.1)}
+    .row .name{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    #drop{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;border:2px dashed #3a455a;border-radius:12px;margin:16px;color:#9fb0d1;pointer-events:none;opacity:0;transition:opacity .15s;z-index:10}
+    #drop.show{opacity:1;pointer-events:auto}
+    .label{position:absolute;padding:2px 6px;background:#000a;border:1px solid #fff3;border-radius:6px;font-size:12px;color:#fff;pointer-events:none;transform:translate(-50%,-140%)}
+    #measurePanel{position:fixed;left:10px;top:60px;background:#1e2633cc;border:1px solid #2a3446;border-radius:10px;padding:8px 10px;font-size:12px;z-index:16;max-width:260px}
+    @media (max-width: 920px){ #sidebar{width: 75vw} #measurePanel{max-width: 50vw} }
+  </style>
+
+  <script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js'));
+  }
+  </script>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="progress"><div id="bar"></div></div>
+
+  <div id="toolbar">
+    <button id="open" class="btn">Deschide model</button>
+    <button id="fit" class="btn">Fit</button>
+    <button id="measure" class="btn" aria-pressed="false" title="Măsurare lanț + snap">Măsurare</button>
+    <button id="undoMeasure" class="btn" title="Șterge ultimul punct">Undo punct</button>
+    <button id="clearMeasure" class="btn" title="Șterge toate punctele">Curăță</button>
+    <button id="hide" class="btn" title="Ascunde selecția">Ascunde</button>
+    <button id="isolate" class="btn" title="Izolează selecția">Izolează</button>
+    <button id="unhide" class="btn" title="Arată tot">Arată tot</button>
+    <button id="clip" class="btn" aria-pressed="false" title="Secțiune plan">Secțiune</button>
+    <button id="explode" class="btn" aria-pressed="false" title="Explode view">Explode</button>
+    <button id="screenshot" class="btn">Screenshot</button>
+    <input id="file" type="file" accept=".glb,.gltf,.obj,.mtl,.bin,.jpg,.jpeg,.png,.ktx2,.hdr,.basis" multiple hidden/>
+  </div>
+
+  <aside id="sidebar">
+    <header>Inspector</header>
+    <div class="section">
+      <div id="selName">Selecție: (nimic)</div>
+      <div id="selInfo" style="font-size:12px;color:var(--muted)"></div>
+    </div>
+    <div class="section">
+      <label>Unități măsurare:
+        <select id="units">
+          <option value="m">metri (m)</option>
+          <option value="cm">centimetri (cm)</option>
+          <option value="mm" selected>milimetri (mm)</option>
+        </select>
+      </label>
+    </div>
+    <div class="section">
+      <label>Factor explode: <input id="explodeRange" type="range" min="0" max="1" step="0.01" value="0"/></label>
+    </div>
+    <div class="section">
+      <div style="font-weight:600;margin-bottom:6px">Metadate</div>
+      <pre id="meta" style="white-space:pre-wrap;max-height:150px;overflow:auto;background:#0f141b;padding:8px;border-radius:8px;color:#cfe2ff;border:1px solid #2a3446"></pre>
+    </div>
+    <div id="tree"></div>
+  </aside>
+
+  <div id="measurePanel" hidden>
+    <div><b>Măsurare lanț</b></div>
+    <div id="segList"></div>
+    <div id="totalDist" style="margin-top:6px;color:#cfe2ff"></div>
+  </div>
+
+  <div id="drop"><div>Eliberează pentru a încărca modelul…</div></div>
+  <div id="status">Gata — Deschide model sau trage fișierul aici</div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+    import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+    import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
+    import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+    import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+    import { OutlinePass } from 'three/addons/postprocessing/OutlinePass.js';
+
+    const app = document.getElementById('app');
+    const status = document.getElementById('status');
+    const bar = document.getElementById('bar');
+    const drop = document.getElementById('drop');
+    const treeEl = document.getElementById('tree');
+    const selName = document.getElementById('selName');
+    const selInfo = document.getElementById('selInfo');
+    const unitsSel = document.getElementById('units');
+    const explodeRange = document.getElementById('explodeRange');
+    const metaEl = document.getElementById('meta');
+    const measurePanel = document.getElementById('measurePanel');
+    const segList = document.getElementById('segList');
+    const totalDist = document.getElementById('totalDist');
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    const maxPR = 1.5;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, maxPR));
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.localClippingEnabled = true;
+    app.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0f1115);
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 20000);
+    camera.position.set(6,6,10);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+
+    const hemi = new THREE.HemisphereLight(0xffffff, 0x223344, 0.8); hemi.position.set(0,50,0); scene.add(hemi);
+    const dir = new THREE.DirectionalLight(0xffffff, 1.2); dir.position.set(10,20,10); scene.add(dir);
+    let gridDiv = 200;
+    let gridHelper = new THREE.GridHelper(200, gridDiv, 0x777777, 0x333333); gridHelper.visible = true; scene.add(gridHelper);
+
+    const composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    const outlinePass = new OutlinePass(new THREE.Vector2(window.innerWidth, window.innerHeight), scene, camera);
+    outlinePass.edgeStrength = 2.5;
+    outlinePass.edgeGlow = 0.4;
+    outlinePass.visibleEdgeColor.set('#6bbcff');
+    outlinePass.hiddenEdgeColor.set('#214d74');
+    composer.addPass(outlinePass);
+
+    let currentRoot = null;
+    let selectable = [];
+    let hiddenSet = new Set();
+    let originalPos = new Map();
+
+    function clearModel(){
+      if(!currentRoot) return;
+      scene.remove(currentRoot);
+      currentRoot.traverse(o=>{
+        if(o.isMesh){
+          o.geometry?.dispose?.();
+          if (o.material){
+            if (Array.isArray(o.material)) o.material.forEach(m=>m.dispose?.());
+            else o.material.dispose?.();
+          }
+        }
+      });
+      currentRoot=null; selectable=[]; hiddenSet.clear(); originalPos.clear();
+      outlinePass.selectedObjects = [];
+      treeEl.innerHTML = '';
+      metaEl.textContent = '';
+      setStatus('Model eliberat');
+    }
+
+    function frameObject(object){
+      const box = new THREE.Box3().setFromObject(object);
+      const size = box.getSize(new THREE.Vector3());
+      const center = box.getCenter(new THREE.Vector3());
+      const maxSize = Math.max(size.x,size.y,size.z);
+      const fitHeightDistance = maxSize/(2*Math.tan(THREE.MathUtils.degToRad(camera.fov)/2));
+      const fitWidthDistance = fitHeightDistance/camera.aspect;
+      const distance = Math.max(fitHeightDistance, fitWidthDistance);
+      const direction = new THREE.Vector3(1,1,1).normalize();
+      camera.position.copy(direction.multiplyScalar(distance)).add(center);
+      controls.target.copy(center); controls.update();
+      gridHelper.position.y = center.y - size.y/2;
+    }
+
+    function setProgress(p){ bar.style.width=(p*100).toFixed(1)+'%'; }
+    function setStatus(t){ status.textContent = t; }
+
+    function buildInspector(root){
+      treeEl.innerHTML = '';
+      selectable = [];
+      root.traverse(o=>{ if (o.isMesh) selectable.push(o); });
+      const makeRow = (obj, depth=0)=>{
+        const row = document.createElement('div');
+        row.className='row';
+        row.style.paddingLeft = (depth*10)+'px';
+        const cb = document.createElement('input');
+        cb.type='checkbox'; cb.checked = obj.visible; cb.addEventListener('change', ()=> { obj.visible = cb.checked; if(!cb.checked) hiddenSet.add(obj); else hiddenSet.delete(obj); });
+        const name = document.createElement('div'); name.className='name'; name.textContent = obj.name || obj.type;
+        row.appendChild(cb); row.appendChild(name);
+        row.addEventListener('click', (e)=>{ e.stopPropagation(); selectObject(obj); });
+        treeEl.appendChild(row);
+        if (obj.children) obj.children.forEach(ch=> makeRow(ch, depth+1));
+      };
+      makeRow(root, 0);
+    }
+
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    let selected = null;
+    function selectObject(obj){
+      selected = obj && obj.isMesh ? obj : null;
+      outlinePass.selectedObjects = selected ? [selected] : [];
+      const box = selected ? new THREE.Box3().setFromObject(selected) : null;
+      selName.textContent = selected ? ('Selecție: ' + (selected.name || selected.type)) : 'Selecție: (nimic)';
+      selInfo.textContent = selected ? ('Dimensiuni: ' + box.getSize(new THREE.Vector3()).toArray().map(n=>n.toFixed(3)).join(' × ')) : '';
+      if (selected){
+        const meta = {...(selected.userData||{})};
+        const parentUser = selected.parent?.userData || {};
+        const any = Object.keys(meta).length || Object.keys(parentUser).length;
+        metaEl.textContent = any ? JSON.stringify({node:meta, parent:parentUser}, null, 2) : '(fără metadate)';
+      } else metaEl.textContent = '';
+    }
+
+    function onPick(e){
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+      const hits = raycaster.intersectObjects(selectable, true);
+      return hits[0] || null;
+    }
+
+    renderer.domElement.addEventListener('click', (e)=>{
+      if (measureMode) return;
+      const hit = onPick(e);
+      selectObject(hit?.object);
+    });
+
+    document.getElementById('hide').addEventListener('click', ()=>{
+      if (!selected) return;
+      selected.traverse(o=>{ o.visible=false; hiddenSet.add(o); });
+    });
+    document.getElementById('unhide').addEventListener('click', ()=>{
+      if (!currentRoot) return;
+      currentRoot.traverse(o=>{ o.visible=true; });
+      hiddenSet.clear();
+    });
+    document.getElementById('isolate').addEventListener('click', ()=>{
+      if (!currentRoot || !selected) return;
+      currentRoot.traverse(o=>{ if (o.isMesh) o.visible=false; });
+      selected.traverse(o=>{ o.visible=true; });
+    });
+
+    function cacheOriginalPositions(root){
+      root.traverse(o=>{
+        if (o.isMesh || o.isGroup) {
+          if (!originalPos.has(o)) originalPos.set(o, o.position.clone());
+        }
+      });
+    }
+    function applyExplode(factor){
+      if (!currentRoot) return;
+      const center = new THREE.Box3().setFromObject(currentRoot).getCenter(new THREE.Vector3());
+      currentRoot.traverse(o=>{
+        if (o.isMesh || o.isGroup) {
+          const base = originalPos.get(o) || o.position.clone();
+          const dir = new THREE.Vector3().subVectors(o.getWorldPosition(new THREE.Vector3()), center).normalize();
+          const off = dir.multiplyScalar(factor * 2.0);
+          o.position.copy(base.clone().add(off));
+        }
+      });
+    }
+    let explodeOn = false;
+    document.getElementById('explode').addEventListener('click', (e)=>{
+      explodeOn = !explodeOn;
+      e.currentTarget.setAttribute('aria-pressed', explodeOn);
+      if (explodeOn) { cacheOriginalPositions(currentRoot); applyExplode(parseFloat(explodeRange.value)); }
+      else { originalPos.forEach((pos, obj)=> obj.position.copy(pos)); }
+    });
+    explodeRange.addEventListener('input', ()=>{ if (explodeOn) applyExplode(parseFloat(explodeRange.value)); });
+
+    const plane = new THREE.Plane(new THREE.Vector3(1,0,0), 0);
+    let clipOn = false;
+    document.getElementById('clip').addEventListener('click', (e)=>{
+      clipOn = !clipOn;
+      e.currentTarget.setAttribute('aria-pressed', clipOn);
+      renderer.clippingPlanes = clipOn ? [plane] : [];
+    });
+    window.addEventListener('wheel', (e)=>{
+      if (!clipOn) return;
+      const sz = currentRoot ? new THREE.Box3().setFromObject(currentRoot).getSize(new THREE.Vector3()).length() : 1;
+      plane.constant += (e.deltaY>0 ? 1 : -1) * 0.02 * sz;
+    }, {passive:true});
+
+    // Measurement chain + snapping
+    const measureBtn = document.getElementById('measure');
+    const undoBtn = document.getElementById('undoMeasure');
+    const clearBtn = document.getElementById('clearMeasure');
+    let measureMode = false;
+    let chainPts = [];
+    let chainLine = null;
+    const lineMat = new THREE.LineBasicMaterial({ color: 0x6bbcff });
+    const pointGeom = new THREE.SphereGeometry(0.01, 8, 8);
+    const pointMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const markers = [];
+
+    function formatDist(meters){
+      const unit = unitsSel.value;
+      if (unit==='mm') return (meters*1000).toFixed(1)+' mm';
+      if (unit==='cm') return (meters*100).toFixed(2)+' cm';
+      return meters.toFixed(3)+' m';
+    }
+
+    function snapHit(hit){
+      if (!hit) return null;
+      const g = hit.object.geometry;
+      if (!g || !g.attributes || !g.attributes.position) return hit.point.clone();
+      const pos = g.attributes.position;
+      let a,b,c;
+      if (hit.face && 'a' in hit.face) { a=hit.face.a; b=hit.face.b; c=hit.face.c; }
+      else { a=(hit.faceIndex||0)*3; b=a+1; c=a+2; }
+      const va = new THREE.Vector3().fromBufferAttribute(pos, a).applyMatrix4(hit.object.matrixWorld);
+      const vb = new THREE.Vector3().fromBufferAttribute(pos, b).applyMatrix4(hit.object.matrixWorld);
+      const vc = new THREE.Vector3().fromBufferAttribute(pos, c).applyMatrix4(hit.object.matrixWorld);
+      const mAB = va.clone().add(vb).multiplyScalar(0.5);
+      const mBC = vb.clone().add(vc).multiplyScalar(0.5);
+      const mCA = vc.clone().add(va).multiplyScalar(0.5);
+      const candidates = [va,vb,vc,mAB,mBC,mCA, hit.point.clone()];
+      candidates.sort((p,q)=> p.distanceToSquared(hit.point) - q.distanceToSquared(hit.point));
+      return candidates[0].clone();
+    }
+
+    function refreshChain(){
+      if (!chainLine){
+        chainLine = new THREE.Line(new THREE.BufferGeometry(), lineMat);
+        scene.add(chainLine);
+      }
+      chainLine.geometry.setFromPoints(chainPts);
+      markers.forEach(m=> scene.remove(m));
+      markers.length = 0;
+      for (const p of chainPts){
+        const m = new THREE.Mesh(pointGeom, pointMat);
+        m.position.copy(p); scene.add(m); markers.push(m);
+      }
+      segList.innerHTML = '';
+      let total = 0;
+      for (let i=1;i<chainPts.length;i++){
+        const d = chainPts[i-1].distanceTo(chainPts[i]);
+        total += d;
+        const item = document.createElement('div');
+        item.textContent = `Segment ${i}: ${formatDist(d)}`;
+        segList.appendChild(item);
+      }
+      totalDist.textContent = `Total: ${formatDist(total)}`;
+      measurePanel.hidden = chainPts.length < 2;
+    }
+
+    measureBtn.addEventListener('click', (e)=>{
+      measureMode = !measureMode;
+      e.currentTarget.setAttribute('aria-pressed', measureMode);
+      setStatus(measureMode ? 'Măsurare: adaugă puncte (tap). Curăță / Undo pentru editare.' : 'Măsurare off');
+    });
+    undoBtn.addEventListener('click', ()=>{ if (chainPts.length){ chainPts.pop(); refreshChain(); } });
+    clearBtn.addEventListener('click', ()=>{ chainPts = []; refreshChain(); });
+
+    renderer.domElement.addEventListener('click', (e)=>{
+      if (!measureMode) return;
+      const hit = onPick(e);
+      if (!hit) return;
+      const p = snapHit(hit);
+      chainPts.push(p);
+      refreshChain();
+    });
+
+    // File open + DnD
+    const openBtn = document.getElementById('open');
+    const fileInput = document.getElementById('file');
+    openBtn.addEventListener('click', ()=> fileInput.click());
+    fileInput.addEventListener('change', (e)=> handleFiles(e.target.files));
+
+    const stopAll = e=>{ e.preventDefault(); e.stopPropagation(); };
+    ['dragenter','dragover','dragleave','drop'].forEach(type=>{
+      window.addEventListener(type, e=>{
+        stopAll(e);
+        if (type==='dragenter'||type==='dragover') drop.classList.add('show');
+        if (type==='dragleave'||type==='drop') drop.classList.remove('show');
+      }, {passive:false, capture:true});
+      document.addEventListener(type, stopAll, {passive:false});
+      document.body.addEventListener(type, stopAll, {passive:false});
+    });
+    document.addEventListener('drop', e=>{
+      const files = e.dataTransfer && e.dataTransfer.files;
+      if (files && files.length) handleFiles(files);
+    }, {passive:false});
+
+    function handleFiles(fileList){
+      if (!fileList || !fileList.length){ setStatus('Niciun fișier selectat'); return; }
+      const map = new Map(); for (const f of fileList) map.set(f.name, f);
+      const primary = [...fileList].find(f=>/\.(glb|gltf|obj)$/i.test(f.name));
+      if (!primary){ alert('Selectează un .glb/.gltf sau .obj'); return; }
+      loadAny(primary, map);
+    }
+
+    class FileMapLoader extends THREE.Loader {
+      constructor(manager, fileMap){ super(manager); this.fileMap = fileMap; }
+      resolveURL(url){ const fname = decodeURI(url).split('/').pop(); const f = this.fileMap.get(fname); if (f) return URL.createObjectURL(f); return super.resolveURL(url); }
+    }
+
+    async function loadAny(primaryFile, fileMap){
+      setProgress(0.01); setStatus('Încărcare…'); clearModel();
+
+      if (/\.glb$/i.test(primaryFile.name)){
+        const loader = new GLTFLoader();
+        const draco = new DRACOLoader(); draco.setDecoderPath('https://www.gstatic.com/draco/v1/decoders/'); loader.setDRACOLoader(draco);
+        const url = URL.createObjectURL(primaryFile);
+        try { const gltf = await new Promise((res,rej)=> loader.load(url, res, undefined, rej));
+          currentRoot = gltf.scene; scene.add(currentRoot); frameObject(currentRoot); setStatus('Încărcat: '+primaryFile.name);
+          buildInspector(currentRoot);
+        } catch(e){ console.error(e); alert('Eroare GLB'); setStatus('Eroare GLB'); } finally { URL.revokeObjectURL(url); setProgress(1); }
+      } else if (/\.gltf$/i.test(primaryFile.name)){
+        const manager = new THREE.LoadingManager();
+        const fml = new FileMapLoader(manager, fileListToMap(fileInput.files));
+        const loader = new GLTFLoader(manager);
+        const draco = new DRACOLoader(); draco.setDecoderPath('https://www.gstatic.com/draco/v1/decoders/'); loader.setDRACOLoader(draco);
+        loader.manager.resolveURL = (url)=> fml.resolveURL(url);
+        const url = URL.createObjectURL(primaryFile);
+        try { const gltf = await new Promise((res,rej)=> loader.load(url, res, undefined, rej));
+          currentRoot = gltf.scene; scene.add(currentRoot); frameObject(currentRoot); setStatus('Încărcat: '+primaryFile.name);
+          buildInspector(currentRoot);
+        } catch(e){ console.error(e); alert('Eroare GLTF'); setStatus('Eroare GLTF'); } finally { URL.revokeObjectURL(url); setProgress(1); }
+      } else if (/\.obj$/i.test(primaryFile.name)){
+        const manager = new THREE.LoadingManager();
+        const fml = new FileMapLoader(manager, mapFromInputOr(fileMap));
+        const objLoader = new OBJLoader(manager);
+        const mtlLoader = new MTLLoader(manager);
+        const base = primaryFile.name.replace(/\.obj$/i, ''); const mtlName = base + '.mtl'; const mtlFile = fileMap.get(mtlName);
+        if (mtlFile){
+          const mtlURL = URL.createObjectURL(mtlFile);
+          try { const mtl = await new Promise((res,rej)=> mtlLoader.load(mtlURL, res, undefined, rej)); mtl.preload(); objLoader.setMaterials(mtl); }
+          catch(e){ console.warn('MTL fail', e); } finally { URL.revokeObjectURL(mtlURL); }
+        }
+        manager.setURLModifier((url)=> fml.resolveURL(url));
+        const objURL = URL.createObjectURL(primaryFile);
+        try { const obj = await new Promise((res,rej)=> objLoader.load(objURL, res, undefined, rej)); currentRoot = obj; scene.add(currentRoot); frameObject(currentRoot); setStatus('Încărcat: '+primaryFile.name); buildInspector(currentRoot); }
+        catch(e){ console.error(e); alert('Eroare OBJ'); setStatus('Eroare OBJ'); } finally { URL.revokeObjectURL(objURL); setProgress(1); }
+      }
+    }
+
+    function fileListToMap(list){ const m = new Map(); if (!list) return m; for (const f of list) m.set(f.name, f); return m; }
+    function mapFromInputOr(fallback){ const m = fileListToMap(document.getElementById('file').files); if (m.size) return m; return fallback; }
+
+    document.getElementById('fit').addEventListener('click', ()=> currentRoot && frameObject(currentRoot));
+    document.getElementById('screenshot').addEventListener('click', ()=>{ const url = renderer.domElement.toDataURL('image/png'); const a=document.createElement('a'); a.href=url; a.download='screenshot.png'; a.click(); });
+
+    // Adaptive performance
+    let frames = 0, last = performance.now(), fps = 60;
+    function adapt(){
+      frames++;
+      const now = performance.now();
+      if (now - last >= 1000){
+        fps = frames * 1000 / (now - last);
+        frames = 0; last = now;
+        if (fps < 25){
+          renderer.setPixelRatio(1.0);
+          outlinePass.edgeStrength = 1.5;
+          gridDiv = Math.max(50, Math.floor(gridDiv*0.8));
+          scene.remove(gridHelper);
+          gridHelper = new THREE.GridHelper(200, gridDiv, 0x666666, 0x2a2a2a);
+          scene.add(gridHelper);
+        }
+      }
+      requestAnimationFrame(adapt);
+    }
+    adapt();
+
+    function onResize(){
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      composer.setSize(window.innerWidth, window.innerHeight);
+    }
+    window.addEventListener('resize', onResize);
+    function animate(){
+      requestAnimationFrame(animate);
+      controls.update();
+      composer.render();
+    }
+    animate();
+  </script>
+</body>
+</html>
